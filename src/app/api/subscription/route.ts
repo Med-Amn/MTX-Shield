@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { stripe, STRIPE_PRICES, PLANS } from "@/lib/stripe";
+import { getStripe, STRIPE_PRICES, PLANS } from "@/lib/stripe";
 import logger from "@/lib/logger";
 import { logAudit } from "@/lib/auth-utils";
 import crypto from "crypto";
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const session = await stripe.checkout.sessions.create({
+    const session = await getStripe().checkout.sessions.create({
       mode: "subscription",
       payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],

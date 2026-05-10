@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type Stripe from "stripe";
-import { stripe } from "@/lib/stripe";
+import { getStripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
 import logger from "@/lib/logger";
 
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.text();
-    const event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
+    const event = getStripe().webhooks.constructEvent(body, sig, webhookSecret);
 
     switch (event.type) {
       case "checkout.session.completed": {
