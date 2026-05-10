@@ -1,8 +1,23 @@
 import crypto from "crypto";
 
-async function getRedis() {
-  const { Redis } = await import("@upstash/redis");
-  return Redis.fromEnv();
+async function redisFetch(command: string, ...args: string[]): Promise<Response> {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) throw new Error("Redis not configured");
+  const path = `/${command}/${args.map(encodeURIComponent).join("/")}`;
+  return fetch(`${url}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+async function redisIncr(key: string): Promise<number> {
+  const res = await redisFetch("INCR", key);
+  const data = await res.json() as { result: number };
+  return data.result;
+}
+
+async function redisExpire(key: string, seconds: number): Promise<void> {
+  await redisFetch("EXPIRE", key, String(seconds));
 }
 
 export async function checkRateLimit(
@@ -11,11 +26,10 @@ export async function checkRateLimit(
   windowMs: number = 60000
 ): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
   try {
-    const redis = await getRedis();
     const now = Date.now();
     const windowKey = `${key}:${Math.floor(now / windowMs)}`;
-    const count = await redis.incr(windowKey);
-    if (count === 1) await redis.expire(windowKey, Math.ceil(windowMs / 1000));
+    const count = await redisIncr(windowKey);
+    if (count === 1) await redisExpire(windowKey, Math.ceil(windowMs / 1000));
     const remaining = Math.max(0, maxRequests - count);
     const resetAt = (Math.floor(now / windowMs) + 1) * windowMs;
     return { allowed: count <= maxRequests, remaining, resetAt };
