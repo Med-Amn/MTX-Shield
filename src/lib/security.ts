@@ -1,20 +1,27 @@
-import { Redis } from "@upstash/redis";
 import crypto from "crypto";
 
-const redis = Redis.fromEnv();
+async function getRedis() {
+  const { Redis } = await import("@upstash/redis");
+  return Redis.fromEnv();
+}
 
 export async function checkRateLimit(
   key: string,
   maxRequests: number = 60,
   windowMs: number = 60000
 ): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
-  const now = Date.now();
-  const windowKey = `${key}:${Math.floor(now / windowMs)}`;
-  const count = await redis.incr(windowKey);
-  if (count === 1) await redis.expire(windowKey, Math.ceil(windowMs / 1000));
-  const remaining = Math.max(0, maxRequests - count);
-  const resetAt = (Math.floor(now / windowMs) + 1) * windowMs;
-  return { allowed: count <= maxRequests, remaining, resetAt };
+  try {
+    const redis = await getRedis();
+    const now = Date.now();
+    const windowKey = `${key}:${Math.floor(now / windowMs)}`;
+    const count = await redis.incr(windowKey);
+    if (count === 1) await redis.expire(windowKey, Math.ceil(windowMs / 1000));
+    const remaining = Math.max(0, maxRequests - count);
+    const resetAt = (Math.floor(now / windowMs) + 1) * windowMs;
+    return { allowed: count <= maxRequests, remaining, resetAt };
+  } catch {
+    return { allowed: true, remaining: maxRequests, resetAt: Date.now() + windowMs };
+  }
 }
 
 export function verifyHMAC(
